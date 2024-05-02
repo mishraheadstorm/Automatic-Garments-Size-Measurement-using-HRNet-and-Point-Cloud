@@ -84,9 +84,9 @@ def main():
         logger.info("Let's use %d GPUs!" % torch.cuda.device_count()) # Let's use 1 GPUs!
 
     # cudnn related setting
-    cudnn.benchmark = cfg.CUDNN.BENCHMARK
-    torch.backends.cudnn.deterministic = cfg.CUDNN.DETERMINISTIC
-    torch.backends.cudnn.enabled = cfg.CUDNN.ENABLED
+    # cudnn.benchmark = cfg.CUDNN.BENCHMARK
+    # torch.backends.cudnn.deterministic = cfg.CUDNN.DETERMINISTIC
+    # torch.backends.cudnn.enabled = cfg.CUDNN.ENABLED
 
     # *** Load Model - Module (./lib/models/pose_hrnet.py)
     model = eval('models.'+cfg.MODEL.NAME+'.get_pose_net')( # 'pose_hrnet'

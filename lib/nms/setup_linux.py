@@ -12,6 +12,7 @@ from distutils.extension import Extension
 from Cython.Distutils import build_ext
 import numpy as np
 
+use_gcc = False
 
 def find_in_path(name, path):
     "Find a file in a search path"
@@ -53,7 +54,10 @@ def locate_cuda():
             raise EnvironmentError('The CUDA %s path could not be located in %s' % (k, v))
 
     return cudaconfig
-CUDA = locate_cuda()
+try:
+    CUDA = locate_cuda()
+except:
+    use_gcc = True
 
 
 # Obtain the numpy include directory.  This logic works across numpy versions.
@@ -99,11 +103,25 @@ def customize_compiler_for_nvcc(self):
     # inject our redefined _compile method into the class
     self._compile = _compile
 
+def customize_compiler_for_gcc(self):
+    self.src_extensions.append('.c')
+    default_compiler_so = self.compiler_so
+    super = self._compile
+    def _compile(obj, src, ext, cc_args, extra_postargs, pp_opts):
+        if os.path.splitext(src)[1] == '.cu':
+            print("Warning: .cu file found on CPU-only system. Skipping compilation.")
+            return
+        super(obj, src, ext, cc_args, extra_postargs, pp_opts)
+    self._compile = _compile
 
 # run the customize_compiler
 class custom_build_ext(build_ext):
     def build_extensions(self):
-        customize_compiler_for_nvcc(self.compiler)
+        print(f"using gcc: {use_gcc}")
+        if not use_gcc:
+            customize_compiler_for_nvcc(self.compiler)
+        # else:
+            # customize_compiler_for_gcc(self.compiler)
         build_ext.build_extensions(self)
 
 
@@ -111,27 +129,32 @@ ext_modules = [
     Extension(
         "cpu_nms",
         ["cpu_nms.pyx"],
-        extra_compile_args={'gcc': ["-Wno-cpp", "-Wno-unused-function"]},
+        extra_compile_args=["-Wno-cpp", "-Wno-unused-function"],
         include_dirs = [numpy_include]
-    ),
-    Extension('gpu_nms',
-        ['nms_kernel.cu', 'gpu_nms.pyx'],
-        library_dirs=[CUDA['lib64']],
-        libraries=['cudart'],
-        language='c++',
-        runtime_library_dirs=[CUDA['lib64']],
-        # this syntax is specific to this build system
-        # we're only going to use certain compiler args with nvcc and not with
-        # gcc the implementation of this trick is in customize_compiler() below
-        extra_compile_args={'gcc': ["-Wno-unused-function"],
-                            'nvcc': ['-arch=sm_35',
-                                     '--ptxas-options=-v',
-                                     '-c',
-                                     '--compiler-options',
-                                     "'-fPIC'"]},
-        include_dirs = [numpy_include, CUDA['include']]
-    ),
+    )
 ]
+
+# if not use_gcc:
+#     ext_modules.append(
+#          Extension(
+#             'gpu_nms',
+#             ['nms_kernel.cu', 'gpu_nms.pyx'],
+#             library_dirs=[CUDA['lib64']],
+#             libraries=['cudart'],
+#             language='c++',
+#             runtime_library_dirs=[CUDA['lib64']],
+#             # this syntax is specific to this build system
+#             # we're only going to use certain compiler args with nvcc and not with
+#             # gcc the implementation of this trick is in customize_compiler() below
+#             extra_compile_args={'gcc': ["-Wno-unused-function"],
+#                                 'nvcc': ['-arch=sm_35',
+#                                         '--ptxas-options=-v',
+#                                         '-c',
+#                                         '--compiler-options',
+#                                         "'-fPIC'"]},
+#             include_dirs = [numpy_include, CUDA['include']]
+#         ),
+#     )
 
 setup(
     name='nms',
